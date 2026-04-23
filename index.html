@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Petualangan Nutrisi 3D - Sistem Pencernaan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+    <!-- Three.js untuk rendering 3D -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap');
+        
+        :root {
+            --primary: #16a34a;
+            --primary-dark: #15803d;
+            --accent: #f59e0b;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: #0a0f1e; 
+            color: #f8fafc;
+            overflow-x: hidden;
+        }
+
+        #bg-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: -1;
+        }
+
+        .glass-morphism {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .organ-card-3d {
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform-style: preserve-3d;
+            perspective: 1000px;
+        }
+
+        .organ-card-3d:hover {
+            transform: rotateY(10deg) rotateX(5deg) scale(1.02);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .active-nav {
+            background: var(--primary);
+            box-shadow: 0 0 20px rgba(22, 163, 74, 0.4);
+            transform: translateY(-2px);
+        }
+
+        @keyframes float-slow {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+
+        .float-anim {
+            animation: float-slow 4s ease-in-out infinite;
+        }
+
+        /* Simulasi Styles */
+        .organ-svg {
+            filter: drop-shadow(0 0 15px rgba(220, 38, 38, 0.2));
+            transition: all 0.5s ease;
+        }
+        
+        .active-organ-svg {
+            filter: drop-shadow(0 0 25px rgba(34, 197, 94, 0.6));
+            transform: scale(1.05);
+        }
+
+        .simulation-container {
+            background: radial-gradient(circle at center, #1e1b4b 0%, #020617 100%);
+        }
+
+        /* Music Bar Animation */
+        .music-bar {
+            width: 3px;
+            background: #16a34a;
+            margin: 0 1px;
+            animation: music-flow 1s ease-in-out infinite;
+        }
+        @keyframes music-flow {
+            0%, 100% { height: 4px; }
+            50% { height: 15px; }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <canvas id="bg-canvas"></canvas>
+
+    <!-- Audio Player -->
+    <audio id="bg-music" loop>
+        <source src="https://github.com/daviqfahrizalsmawan/githubdaviq/raw/refs/heads/main/Where_the_River_Bends.mp3" type="audio/mpeg">
+    </audio>
+
+    <!-- Music Control Floating -->
+    <div class="fixed bottom-6 right-6 z-[100] flex items-center gap-3 glass-morphism p-3 rounded-2xl border-green-500/30">
+        <div id="music-animation" class="flex items-end h-4 px-2 hidden">
+            <div class="music-bar" style="animation-delay: 0.1s"></div>
+            <div class="music-bar" style="animation-delay: 0.3s"></div>
+            <div class="music-bar" style="animation-delay: 0.2s"></div>
+            <div class="music-bar" style="animation-delay: 0.4s"></div>
+        </div>
+        <button onclick="toggleMusic()" id="music-btn" class="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center text-white shadow-lg hover:scale-110 transition-transform">
+            <i class="fas fa-music"></i>
+        </button>
+    </div>
+
+    <header class="p-8 relative z-10">
+        <div class="container mx-auto flex flex-col md:flex-row justify-between items-center">
+            <div class="animate__animated animate__fadeInLeft">
+                <h1 class="text-5xl font-extrabold tracking-tighter text-white flex items-center gap-4">
+                    <span class="bg-green-600 p-3 rounded-2xl rotate-3 inline-block shadow-2xl">
+                        <i class="fas fa-atom"></i>
+                    </span>
+                    DIGESTIVE <span class="text-green-500">PRO</span>
+                </h1>
+                <p class="text-gray-400 mt-2 font-medium">Sistem Pencernaan Interaktif Realistik</p>
+            </div>
+            <div class="mt-6 md:mt-0 flex gap-4 animate__animated animate__fadeInRight">
+                <div class="glass-morphism px-6 py-3 rounded-2xl flex items-center gap-3">
+                    <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                    <span class="text-sm font-bold uppercase tracking-widest text-green-400">Simulation Engine v2.0</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <nav class="sticky top-4 z-50 mx-auto max-w-2xl px-4 mb-10">
+        <div class="glass-morphism p-2 rounded-2xl flex justify-around">
+            <button onclick="switchTab('materi')" id="tab-materi" class="flex-1 py-3 px-4 rounded-xl font-bold transition-all active-nav">
+                <i class="fas fa-book-open mr-2"></i>Eksplorasi
+            </button>
+            <button onclick="switchTab('animasi')" id="tab-animasi" class="flex-1 py-3 px-4 rounded-xl font-bold transition-all text-gray-400 hover:text-white">
+                <i class="fas fa-vial mr-2"></i>Simulasi 3D
+            </button>
+            <button onclick="switchTab('kuis')" id="tab-kuis" class="flex-1 py-3 px-4 rounded-xl font-bold transition-all text-gray-400 hover:text-white">
+                <i class="fas fa-brain mr-2"></i>Kuis
+            </button>
+        </div>
+    </nav>
+
+    <main class="container mx-auto px-6 relative z-10 pb-20">
+
+        <!-- SECTION: JELAJAH MATERI -->
+        <section id="section-materi" class="animate__animated animate__fadeIn">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <div class="lg:col-span-4 space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                    <h2 class="text-xl font-bold text-green-400 mb-6 uppercase tracking-widest">Daftar Organ</h2>
+                    <div id="organ-list" class="space-y-4">
+                        <div onclick="selectOrgan('mulut')" class="organ-card-3d glass-morphism p-5 rounded-2xl cursor-pointer group">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 bg-pink-500/20 rounded-xl flex items-center justify-center text-pink-400 text-xl"><i class="fas fa-lips"></i></div>
+                                <div><h4 class="font-bold text-white">Mulut</h4><p class="text-xs text-gray-500">Pencernaan Awal</p></div>
+                            </div>
+                        </div>
+                        <div onclick="selectOrgan('lambung')" class="organ-card-3d glass-morphism p-5 rounded-2xl cursor-pointer group">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 bg-red-500/20 rounded-xl flex items-center justify-center text-red-400 text-xl"><i class="fas fa-stomach"></i></div>
+                                <div><h4 class="font-bold text-white">Lambung</h4><p class="text-xs text-gray-500">Pengasaman Protein</p></div>
+                            </div>
+                        </div>
+                        <div onclick="selectOrgan('usus halus')" class="organ-card-3d glass-morphism p-5 rounded-2xl cursor-pointer group">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center text-blue-400 text-xl"><i class="fas fa-dna"></i></div>
+                                <div><h4 class="font-bold text-white">Usus Halus</h4><p class="text-xs text-gray-500">Penyerapan Sari</p></div>
+                            </div>
+                        </div>
+                        <div onclick="selectOrgan('usus besar')" class="organ-card-3d glass-morphism p-5 rounded-2xl cursor-pointer group">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 bg-amber-500/20 rounded-xl flex items-center justify-center text-amber-400 text-xl"><i class="fas fa-bacteria"></i></div>
+                                <div><h4 class="font-bold text-white">Usus Besar</h4><p class="text-xs text-gray-500">Reabsorpsi Air</p></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-8">
+                    <div id="detail-panel" class="glass-morphism p-10 rounded-3xl min-h-[600px] flex flex-col justify-center">
+                        <div id="welcome-detail" class="text-center py-20">
+                            <i class="fas fa-microscope text-7xl text-green-500/20 mb-6 float-anim"></i>
+                            <h3 class="text-2xl font-bold text-gray-400">Pilih organ untuk memulai analisis</h3>
+                        </div>
+                        <div id="content-detail" class="hidden animate__animated animate__fadeIn">
+                            <div class="flex justify-between items-start mb-8">
+                                <div>
+                                    <span id="organ-badge" class="px-3 py-1 bg-green-600 text-[10px] font-black uppercase rounded mb-2 inline-block"></span>
+                                    <h2 id="organ-title" class="text-5xl font-black text-white italic"></h2>
+                                </div>
+                                <div id="organ-icon-display" class="text-7xl opacity-30"></div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="bg-white/5 p-6 rounded-2xl border-l-4 border-green-500">
+                                    <h4 class="text-green-500 font-bold mb-2">Deskripsi Biologis</h4>
+                                    <p id="organ-desc" class="text-gray-300 text-sm leading-relaxed"></p>
+                                </div>
+                                <div class="space-y-4">
+                                    <div class="bg-blue-500/10 p-4 rounded-xl border border-blue-500/20">
+                                        <h5 class="text-blue-400 font-bold text-xs uppercase mb-1">Proses Mekanik</h5>
+                                        <p id="organ-mekanik" class="text-xs text-gray-400"></p>
+                                    </div>
+                                    <div class="bg-purple-500/10 p-4 rounded-xl border border-purple-500/20">
+                                        <h5 class="text-purple-400 font-bold text-xs uppercase mb-1">Proses Kimiawi</h5>
+                                        <p id="organ-kimiawi" class="text-xs text-gray-400"></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION: SIMULASI REALISTIK -->
+        <section id="section-animasi" class="hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <!-- Simulation Controls & Info -->
+                <div class="lg:col-span-1 space-y-6">
+                    <div class="glass-morphism p-6 rounded-2xl">
+                        <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                            <i class="fas fa-stethoscope text-green-500"></i> Status Biometrik
+                        </h3>
+                        <div class="space-y-4">
+                            <div class="p-3 bg-white/5 rounded-lg">
+                                <p class="text-[10px] text-gray-500 uppercase font-black">Lokasi Saat Ini</p>
+                                <p id="sim-loc" class="text-sm font-bold text-green-400">Siap Mulai</p>
+                            </div>
+                            <div class="p-3 bg-white/5 rounded-lg">
+                                <p class="text-[10px] text-gray-500 uppercase font-black">Zat yang Bekerja</p>
+                                <p id="sim-enzyme" class="text-sm font-bold text-blue-400">-</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button onclick="startSim()" id="btn-play" class="w-full bg-green-600 hover:bg-green-500 text-white py-5 rounded-2xl font-black text-xl shadow-2xl transition-all flex items-center justify-center gap-3">
+                        <i class="fas fa-play"></i> JALANKAN
+                    </button>
+                    <button onclick="resetSim()" class="w-full bg-white/5 hover:bg-white/10 text-white py-4 rounded-2xl font-bold transition-all">
+                        RESET SIMULASI
+                    </button>
+                </div>
+
+                <!-- Simulation Visualizer -->
+                <div class="lg:col-span-3">
+                    <div class="simulation-container h-[700px] rounded-[40px] relative overflow-hidden border border-white/10 shadow-2xl">
+                        <!-- Anatomy Overlay -->
+                        <div class="absolute inset-0 flex items-center justify-center pointer-events-none p-10">
+                            <svg id="anatomy-svg" viewBox="0 0 800 600" class="w-full h-full opacity-40">
+                                <!-- Mulut -->
+                                <path id="svg-mulut" class="organ-svg" d="M350,80 Q400,50 450,80 Q450,130 400,150 Q350,130 350,80" fill="#fecaca" />
+                                <!-- Kerongkongan -->
+                                <rect id="svg-esofagus" class="organ-svg" x="390" y="150" width="20" height="150" fill="#fca5a5" />
+                                <!-- Lambung -->
+                                <path id="svg-lambung" class="organ-svg" d="M380,300 Q300,320 320,400 Q350,450 450,420 Q480,380 430,320 Z" fill="#ef4444" />
+                                <!-- Usus Halus -->
+                                <path id="svg-usus-halus" class="organ-svg" d="M350,450 Q400,430 450,450 Q480,500 400,550 Q320,500 350,450" fill="#f97316" />
+                                <!-- Alur Path -->
+                                <path id="motion-path" d="M400,80 L400,350 Q400,380 400,500" fill="none" stroke="transparent" />
+                            </svg>
+                        </div>
+
+                        <!-- Interactive Bolus -->
+                        <div id="bolus" class="absolute left-1/2 top-[80px] -translate-x-1/2 w-16 h-16 bg-yellow-400 rounded-full shadow-[0_0_50px_rgba(234,179,8,0.8)] border-4 border-white/20 flex items-center justify-center text-3xl z-30 transition-all duration-1000 ease-in-out">
+                            🍕
+                        </div>
+
+                        <!-- Labels -->
+                        <div id="sim-info-box" class="absolute bottom-10 left-10 right-10 glass-morphism p-6 rounded-2xl border-t-2 border-green-500 animate__animated animate__fadeInUp hidden">
+                            <h4 id="info-title" class="text-xl font-black text-white mb-1">PROSES BERJALAN</h4>
+                            <p id="info-desc" class="text-gray-400 text-sm"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION: KUIS -->
+        <section id="section-kuis" class="hidden">
+            <div class="max-w-2xl mx-auto glass-morphism p-12 rounded-[40px] text-center">
+                <div id="quiz-start">
+                    <i class="fas fa-brain text-7xl text-green-500 mb-8 float-anim"></i>
+                    <h2 class="text-3xl font-black text-white mb-4">UJI KOMPETENSI</h2>
+                    <p class="text-gray-400 mb-10">Evaluasi pemahaman Anda tentang fisiologi pencernaan.</p>
+                    <button onclick="startQuiz()" class="bg-green-600 hover:bg-green-500 text-white px-12 py-5 rounded-2xl font-black text-xl shadow-2xl transition-all">MULAI ANALISIS</button>
+                </div>
+                <div id="quiz-content" class="hidden text-left">
+                    <div class="flex justify-between items-center mb-10">
+                        <span id="q-count" class="text-xs font-black text-gray-500 tracking-widest uppercase">Soal 1 / 5</span>
+                        <span id="q-score" class="text-green-500 font-black">Score: 0</span>
+                    </div>
+                    <h3 id="q-text" class="text-xl font-bold text-white mb-8"></h3>
+                    <div id="q-options" class="space-y-4"></div>
+                </div>
+                <div id="quiz-end" class="hidden">
+                    <h2 class="text-5xl font-black text-white mb-4" id="final-score">0</h2>
+                    <p id="final-msg" class="text-gray-400 mb-10"></p>
+                    <button onclick="location.reload()" class="bg-white text-black px-10 py-4 rounded-xl font-bold">ULANGI MATERI</button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        /** AUDIO CONTROL **/
+        const music = document.getElementById('bg-music');
+        const musicBtn = document.getElementById('music-btn');
+        const musicAnim = document.getElementById('music-animation');
+        let isPlaying = false;
+
+        function toggleMusic() {
+            if (isPlaying) {
+                music.pause();
+                musicBtn.innerHTML = '<i class="fas fa-music"></i>';
+                musicAnim.classList.add('hidden');
+            } else {
+                music.play().catch(e => console.log("Autoplay blocked, waiting for user interaction"));
+                musicBtn.innerHTML = '<i class="fas fa-pause"></i>';
+                musicAnim.classList.remove('hidden');
+            }
+            isPlaying = !isPlaying;
+        }
+
+        // Try to autoplay on first click anywhere
+        document.body.addEventListener('click', function() {
+            if(!isPlaying && music.paused) {
+                // Do not automatically play unless we want to, 
+                // but this ensures context is allowed.
+            }
+        }, { once: true });
+
+        /** THREE.JS ENGINE **/
+        const canvas = document.querySelector('#bg-canvas');
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 5;
+
+        const particlesGeometry = new THREE.BufferGeometry();
+        const particlesCount = 800;
+        const posArray = new Float32Array(particlesCount * 3);
+        for(let i=0; i<particlesCount*3; i++) posArray[i] = (Math.random()-0.5)*20;
+        particlesGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        const particlesMaterial = new THREE.PointsMaterial({ size: 0.02, color: '#16a34a', transparent: true, opacity: 0.3 });
+        const particlesMesh = new THREE.Points(particlesGeometry, particlesMaterial);
+        scene.add(particlesMesh);
+
+        function animateBg() {
+            requestAnimationFrame(animateBg);
+            particlesMesh.rotation.y += 0.001;
+            renderer.render(scene, camera);
+        }
+        animateBg();
+
+        /** CONTENT DATA **/
+        const bioData = {
+            mulut: { badge: 'Ingestion', title: 'Cavum Oris', icon: '👄', desc: 'Awal pemrosesan makanan. Di sini terjadi pemecahan pati secara kimiawi dan pengecilan ukuran secara mekanik.', mekanik: 'Mastikasi oleh gigi', kimiawi: 'Enzim Ptialin (Amilase)' },
+            lambung: { badge: 'Digestion', title: 'Gaster', icon: '🥣', desc: 'Organ berbentuk J yang sangat asam. Berfungsi membunuh bakteri dan memulai pencernaan protein.', mekanik: 'Gerak mengaduk (kimus)', kimiawi: 'Enzim Pepsin & HCl' },
+            'usus halus': { badge: 'Absorption', title: 'Intestinum Tenue', icon: '🧬', desc: 'Pusat penyerapan nutrisi utama. Sebagian besar pencernaan kimiawi selesai di sini.', mekanik: 'Gerak Peristaltik & Segmentasi', kimiawi: 'Enzim Pankreas & Empedu' },
+            'usus besar': { badge: 'Reabsorption', title: 'Colon', icon: '💩', desc: 'Tempat penyerapan sisa air dan pembentukan feses dengan bantuan bakteri baik.', mekanik: 'Gerakan massa', kimiawi: 'Bakteri E. Coli (Vit K)' }
+        };
+
+        /** NAVIGATION **/
+        function switchTab(id) {
+            ['materi', 'animasi', 'kuis'].forEach(t => {
+                document.getElementById(`section-${t}`).classList.add('hidden');
+                document.getElementById(`tab-${t}`).classList.remove('active-nav');
+                document.getElementById(`tab-${t}`).classList.add('text-gray-400');
+            });
+            document.getElementById(`section-${id}`).classList.remove('hidden');
+            document.getElementById(`tab-${id}`).classList.add('active-nav');
+            document.getElementById(`tab-${id}`).classList.remove('text-gray-400');
+        }
+
+        function selectOrgan(key) {
+            const data = bioData[key];
+            document.getElementById('welcome-detail').classList.add('hidden');
+            const content = document.getElementById('content-detail');
+            content.classList.remove('hidden');
+            document.getElementById('organ-title').innerText = data.title;
+            document.getElementById('organ-badge').innerText = data.badge;
+            document.getElementById('organ-desc').innerText = data.desc;
+            document.getElementById('organ-mekanik').innerText = data.mekanik;
+            document.getElementById('organ-kimiawi').innerText = data.kimiawi;
+            document.getElementById('organ-icon-display').innerText = data.icon;
+        }
+
+        /** SIMULATION ENGINE **/
+        let simStep = 0;
+        const simStates = [
+            { y: 80, organ: 'mulut', label: 'MULUT', enzyme: 'Ptialin (Amilase)', msg: 'Makanan dikunyah dan pati mulai dipecah menjadi maltosa.', icon: '🍕' },
+            { y: 220, organ: 'esofagus', label: 'KERONGKONGAN', enzyme: 'Mukus', msg: 'Gerak peristaltik mendorong bolus menuju lambung.', icon: '🥟' },
+            { y: 350, organ: 'lambung', label: 'LAMBUNG', enzyme: 'Pepsin & HCl', msg: 'Protein didenaturasi dan bakteri dimatikan oleh asam lambung.', icon: '🥣' },
+            { y: 500, organ: 'usus-halus', label: 'USUS HALUS', enzyme: 'Lipase & Tripsin', msg: 'Nutrisi diserap ke pembuluh darah melalui mikrovili.', icon: '✨' },
+            { y: 620, organ: 'usus-besar', label: 'USUS BESAR', enzyme: 'Bakteri Simbiosis', msg: 'Reabsorpsi air dan pembentukan vitamin K.', icon: '💩' }
+        ];
+
+        function startSim() {
+            const bolus = document.getElementById('bolus');
+            const infoBox = document.getElementById('sim-info-box');
+            const btn = document.getElementById('btn-play');
+            
+            btn.disabled = true;
+            btn.classList.add('opacity-50');
+            infoBox.classList.remove('hidden');
+
+            function next() {
+                if (simStep >= simStates.length) {
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-50');
+                    return;
+                }
+
+                const state = simStates[simStep];
+                document.querySelectorAll('.organ-svg').forEach(el => el.classList.remove('active-organ-svg'));
+                const svgPart = document.getElementById(`svg-${state.organ}`);
+                if(svgPart) svgPart.classList.add('active-organ-svg');
+
+                bolus.style.top = `${state.y}px`;
+                bolus.innerText = state.icon;
+                
+                document.getElementById('sim-loc').innerText = state.label;
+                document.getElementById('sim-enzyme').innerText = state.enzyme;
+                document.getElementById('info-title').innerText = state.label;
+                document.getElementById('info-desc').innerText = state.msg;
+
+                simStep++;
+                setTimeout(next, 2500);
+            }
+            next();
+        }
+
+        function resetSim() {
+            simStep = 0;
+            const bolus = document.getElementById('bolus');
+            bolus.style.top = '80px';
+            bolus.innerText = '🍕';
+            document.getElementById('sim-loc').innerText = 'Siap Mulai';
+            document.getElementById('sim-enzyme').innerText = '-';
+            document.getElementById('sim-info-box').classList.add('hidden');
+            document.querySelectorAll('.organ-svg').forEach(el => el.classList.remove('active-organ-svg'));
+            document.getElementById('btn-play').disabled = false;
+            document.getElementById('btn-play').classList.remove('opacity-50');
+        }
+
+        /** QUIZ ENGINE **/
+        const questions = [
+            { q: "Apa nama enzim yang memecah protein di lambung?", o: ["Amilase", "Pepsin", "Lipase", "Ptialin"], a: 1 },
+            { q: "Di mana proses penyerapan sari makanan terjadi?", o: ["Lambung", "Mulut", "Usus Halus", "Usus Besar"], a: 2 },
+            { q: "Gerakan meremas pada kerongkongan disebut...", o: ["Gerak Amuba", "Gerak Peristaltik", "Gerak Relaksasi", "Gerak Kimus"], a: 1 },
+            { q: "Zat yang membunuh kuman di lambung adalah...", o: ["HCl", "Enzim Renin", "Empedu", "Air Liur"], a: 0 },
+            { q: "Fungsi utama usus besar adalah...", o: ["Menyerap Lemak", "Menyerap Protein", "Menyerap Air", "Menyerap Glukosa"], a: 2 }
+        ];
+
+        let curQ = 0;
+        let score = 0;
+
+        function startQuiz() {
+            document.getElementById('quiz-start').classList.add('hidden');
+            document.getElementById('quiz-content').classList.remove('hidden');
+            showQ();
+        }
+
+        function showQ() {
+            const q = questions[curQ];
+            document.getElementById('q-count').innerText = `Soal ${curQ + 1} / ${questions.length}`;
+            document.getElementById('q-text').innerText = q.q;
+            const optDiv = document.getElementById('q-options');
+            optDiv.innerHTML = '';
+            q.o.forEach((opt, i) => {
+                const b = document.createElement('button');
+                b.className = "w-full text-left p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-green-600 transition-all text-white font-bold";
+                b.innerText = opt;
+                b.onclick = () => {
+                    if(i === q.a) score += 20;
+                    document.getElementById('q-score').innerText = `Score: ${score}`;
+                    curQ++;
+                    if(curQ < questions.length) showQ();
+                    else endQuiz();
+                };
+                optDiv.appendChild(b);
+            });
+        }
+
+        function endQuiz() {
+            document.getElementById('quiz-content').classList.add('hidden');
+            document.getElementById('quiz-end').classList.remove('hidden');
+            document.getElementById('final-score').innerText = score;
+            document.getElementById('final-msg').innerText = score >= 80 ? "Luar biasa! Anda memahami sistem pencernaan dengan sangat baik." : "Bagus! Silakan ulas kembali materi yang belum dikuasai.";
+        }
+    </script>
+</body>
+</html>
